@@ -1,6 +1,6 @@
 sam's Dank Neural Network library (libdnn)
 
-libdnn is a C/C++ neural network library providing basic neural network
+libdnn is a C/C++ neural network library providing basic fully-connected ann
 functionality in a C implementation depending only on the standard library
 
 see header file src/dnn.h for api documentation
@@ -11,4 +11,4 @@ see header file src/dnn.h for api documentation
 compile.sh also builds an example program to bin/examples/mnist, which trains 
 handwritten digit recognition on the MNIST database (provided)
 
-all code is made avaliable under the terms of GPL-3.0-only, see LICENSE
+all code is made avaliable under the terms of GPL-3.0-or-later, see COPYING

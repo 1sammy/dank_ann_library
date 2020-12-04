@@ -171,7 +171,7 @@ int destroy_dataset(struct dataset *ds)
 
 int main()
 {
-	int i, a;
+	int i, a, b;
 	int rand_sel;
 
 	struct dataset *train_data, *test_data;
@@ -194,7 +194,8 @@ int main()
 
 	train = dnn_create_train(net);
 
-	printf("sweeping over the training database once...\n");
+	printf("sweeping over the training database a thousand times...\n");
+	for(b = 0; b < 1000; ++b)
 	for(i = 0; i < train_data->data_size[0]; ++i){
 		for(a = 0; a < 10; ++a)
 			want[a] = 0;
@@ -213,10 +214,12 @@ int main()
 	for(i = 0; i < test_data->data_size[0]; ++i){
 		rand_sel = rand() % test_data->data_size[0];
 		output = dnn_test(net, test_data->data[rand_sel]);
+		/*
 		for(a = 0; a < 10; ++a)
 			printf("%1.3f ", output[a]);
 		putchar('\n');
 		printf("labelled value: %i\n", test_data->label[rand_sel]);
+		*/
 
 		// determining accuracy
 		max_output = 0;
@@ -226,7 +229,7 @@ int main()
 				guess = a;
 			}
 		}
-		printf("network_guess: %i\n", guess);
+		// printf("network_guess: %i\n", guess);
 		if(guess == test_data->label[rand_sel])
 			accuracy += 1.0/test_data->data_size[0];
 
