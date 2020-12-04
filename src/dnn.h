@@ -3,7 +3,7 @@
  * Copyright Sam Popham 2020
  *
  * this file is part of libdnn
- * 
+ *
  *  libdnn is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
@@ -47,10 +47,12 @@ extern "C"
  * 	IEEE754
  * 6)	destroy objects returned by dnn_create_ functions and
  * 	free their memory back to system
- * all functions returning pointer types will return NULL on
- * error, int functions returning 0 on success and -1 on error
+ * 7)	get the input cost gradient of a network, to be able to
+ * 	propegate this back through a network producing the input
  *
- * oh btw its full of bugs so have fun!
+ * functions returning pointer types will return NULL on
+ * error, int functions return 0 on success and -1 on error
+ *
  */
 
 	/* dnn_type creation */
@@ -69,6 +71,28 @@ int dnn_init_net(struct dnn_net *net);
  * network net using xavier initialization, all biases = 0 and all
  * weights normally distributed on the range [-1/sqrt(n), 1/sqrt(n)],
  * n == number of nodes in the weight's layer */
+
+	/* set internal function pointers */
+
+int dnn_set_act_func(struct dnn_net *net, int lay_num, 
+		float (*actv_func)(float x));
+/* dnn_set_act_func() sets the activation function of layer lay_num in network
+ * net to the function pointed to by actv_func this cannot be set for the
+ * input layer (lay_num == 0), and when training networks, a derivitave
+ * function should be supplied and set with dnn_set_d_act_func() in order for
+ * training results to be non-garbage 
+ * swish is used by default if this is not called for each layer in a network */
+int dnn_set_d_act_func(struct dnn_train *train, int lay_num,
+		float (*d_actv_func)(float x));
+/* dnn_set_d_act_func() sets the derivitave activation function for a layer in 
+ * train, similarily to dnn_set_act_func()
+ * training objects default to d/dx(swish(x)) */
+int dnn_set_d_cost_func(struct dnn_train *train,
+		float (*d_cost_func)(float out, float want));
+/* sets the derivitave cost function (target essential optimination) for a
+ * training object, where d_cost_func defines the derivitave of cost for
+ * a given out and want of a training example
+ * defaults to d/dx(mean_squared_error(x)) */
 
 	/* network save/load */
 
@@ -90,10 +114,15 @@ int dnn_apply(struct dnn_train **train, int n_train, float train_aggr);
 /* dnn_apply() takes an array of train objects, of length n_train, and updates 
  * the internal parameters of the network associated with the training objects
  * according to the average cost gradient of the training objects */
-
 float *dnn_test(struct dnn_net *net, float *inp);
 /* dnn_test() returns an output float vector for the forward pass of input vector
  * inp through network net */
+float *get_input_gradient(struct dnn_train *train);
+/* returns the input gradient with repsect to cost from train,
+ * useful for providing the negative of this to another network that
+ * fed the inputs of train's training example to play min/max games */
+
+	/* cleanup functions */
 
 int dnn_destroy_net(struct dnn_net *net);
 /* frees memory owned by net, do not attempt to use net after calling this on it */

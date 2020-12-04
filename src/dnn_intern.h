@@ -3,7 +3,7 @@
  * Copyright Sam Popham 2020
  *
  * this file is part of libdnn
- * 
+ *
  *  libdnn is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
@@ -52,8 +52,6 @@ struct dnn_net{
 	struct dnn_layer *lays;
 };
 
-/* all library interfacing through float vectors and opaque types */
-
 /* activation functions */
 float dnn_act_sigmoid(float x);
 float dnn_act_swish(float x);
@@ -63,6 +61,13 @@ float dnn_d_cost_mse(float out, float want);
 /* dnn_type creation */
 struct dnn_net *dnn_create_network(int num_lays, int *lay_sizes);
 struct dnn_train *dnn_create_train(struct dnn_net *net);
+
+/* set internal function pointers */
+int dnn_set_act_func(struct dnn_net *net, int lay_num, float (*actv_func)(float x));
+int dnn_set_d_act_func(struct dnn_train *train, int lay_num,
+		float (*d_actv_func)(float x));
+int dnn_set_d_cost_func(struct dnn_train *train,
+		float (*d_cost_func)(float out, float want));
 
 /* network initialization */
 float normal_probability(float x);
@@ -77,8 +82,11 @@ struct dnn_net *dnn_load_net(const char *filename);
 int dnn_train(float *inp, float *want, struct dnn_train *train);
 int dnn_apply(struct dnn_train **train, int n_train, float train_aggr);
 
+float *get_input_gradient(struct dnn_train *train);
+
 float *dnn_test(struct dnn_net *net, float *inp);
 
+/* cleanup functions */
 int dnn_destroy_net(struct dnn_net *net);
 int dnn_destroy_train(struct dnn_train *train);
 

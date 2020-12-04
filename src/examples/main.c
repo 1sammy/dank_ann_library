@@ -195,7 +195,7 @@ int main()
 	train = dnn_create_train(net);
 
 	printf("sweeping over the training database a thousand times...\n");
-	for(b = 0; b < 1000; ++b)
+	for(b = 0; b < 50; ++b)
 	for(i = 0; i < train_data->data_size[0]; ++i){
 		for(a = 0; a < 10; ++a)
 			want[a] = 0;

@@ -3,7 +3,7 @@
  * Copyright Sam Popham 2020
  *
  * this file is part of libdnn
- * 
+ *
  *  libdnn is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
@@ -32,7 +32,7 @@ float dnn_act_sigmoid(float x)
 	return pow(1 + exp(-1 * x), -1);
 }
 
-/* we use swish by default cuz its dank: */
+/* swish by default cuz its dank: */
 float dnn_act_swish(float x)
 {
 	return x * dnn_act_sigmoid(x);
@@ -48,11 +48,14 @@ struct dnn_net *dnn_create_network(int num_lays, int *lay_sizes)
 	struct dnn_net *net;
 	int i, j;
 
+	if(!lay_sizes)
+		return NULL;
+	if(num_lays < 2)
+		return NULL;
+
 	net = malloc(sizeof *net);
 	net->lays = malloc(sizeof *net->lays * (num_lays - 1));
-	/* we dont consider the "input layer" an actual layer,
-	 * it is already "activated" as the input data and has no
-	 * activation function or activation parameters */
+	/* no need to allocate biases or weights for input "layer" */
 
 	net->num_lays = num_lays;
 	net->lay_sizes = malloc(sizeof *net->lay_sizes * num_lays);
@@ -66,11 +69,42 @@ struct dnn_net *dnn_create_network(int num_lays, int *lay_sizes)
 			net->lays[i].wm[j] = &net->lays[i].wm_alloc_handle[lay_sizes[i] * j];
 		net->lays[i].bias = malloc(sizeof *net->lays[i].bias * lay_sizes[i + 1]);
 		net->lays[i].actv_func = &dnn_act_swish;
-		/* todo: make activation function user selectable or even user definable
-		 * or at least variable lol */
 	}
 
 	return net;
+}
+
+int dnn_set_act_func(struct dnn_net *net, int lay_num, float (*actv_func)(float x))
+{
+	if(!net)
+		return -1;
+	if(lay_num <= 0 || lay_num >= net->num_lays)
+		return -1;
+
+	/* input layer is thoeretical for forward propegation,
+	 * rlly just the rowsize of internal layer 1, which is
+	 * stored in net->lays[0] */
+	net->lays[lay_num - 1].actv_func = actv_func;
+
+	return 0;
+}
+
+int dnn_set_d_act_func(struct dnn_train *train, int lay_num,
+		float (*d_actv_func)(float x))
+{
+	if(!train)
+		return -1;
+	if(lay_num < 0 || lay_num >= train->net->num_lays)
+		return -1;
+
+	/* input layer actually exists here because we want to
+	 * save its activation gradient */
+	train->d_lays[lay_num].d_actv_func = d_actv_func;
+
+	/* should be saved to net save files...
+	 * for now leave the responsibilty of replicating this
+	 * part of state to the user */
+	return 0;
 }
 
 int dnn_destroy_net(struct dnn_net *net)
@@ -90,8 +124,7 @@ int dnn_destroy_net(struct dnn_net *net)
 	return 0;
 }
 
-/* user can define their own cost functions, we will use d/da(mse)
- * as a default */
+/* simple d(cost)/d(output), cost == mse */
 float dnn_d_cost_mse(float out, float want)
 {
 	return 2 * (out - want);
@@ -133,9 +166,17 @@ struct dnn_train *dnn_create_train(struct dnn_net *net)
 	}
 
 	train->d_cost = &dnn_d_cost_mse;
-	/* make this user settable */
 
 	return train;
+}
+
+int dnn_set_d_cost_func(struct dnn_train *train,
+		float (*d_cost_func)(float out, float want))
+{
+	if(!train || !d_cost_func)
+		return -1;
+	train->d_cost = d_cost_func;
+	return 0;
 }
 
 int dnn_destroy_train(struct dnn_train *train)
@@ -171,27 +212,23 @@ float *xavier_data(int n_cols, int n_rows)
 	float rand_n;
 	float *data;
 
-	data = NULL;
-	data = malloc(sizeof *data * n_cols * n_rows);
+	/* calloc() to keep clang-tidy happy */
+	data = calloc(sizeof *data, n_cols * n_rows);
 	if(!data)
 		return NULL;
 
 	srand(time(NULL));
 
-	/* this is kinda janky but i think it works?
-	 * generating random data to fit a normal distribution
-	 * always fun... */
 	for(i = 0; i < n_cols * n_rows; ++i){
-		/* we generate a number [0,1) */
+		/* generate a random float [0,1) */
 		rand_n = rand() / (RAND_MAX + 1.0);
-		/* test its probability of occuring on a distribution of
-		 * std_deviation = 1; symmetrical about x = 0;
-		 * and randomize another number [0,1) to see if we include it */
+		/* compare its normal occurance probability to a random probability */
 		while(normal_probability(rand() / (RAND_MAX + 1.0)) > normal_probability(rand_n))
 			rand_n = rand() / (RAND_MAX + 1.0);
 		if(rand() % 2 == 0){
-			/* we try to generate data on U[-1/sqrt(n), 1/sqrt(n)],
-			 * n = column_size(wm) */
+			/* target dataset:
+			 * data[i] ~ U[-1/sqrt(n), 1/sqrt(n)],
+			 * n = row_size(wm) */
 			rand_n *= -1;
 		}
 		rand_n /= sqrt(n_cols);
@@ -220,9 +257,6 @@ int dnn_init_net(struct dnn_net *net)
 
 			for(k = 0; k < net->lay_sizes[i]; ++k)
 				net->lays[i].wm[j][k] = xavier_wts[j * net->lay_sizes[i] + k];
-			/* clang-tidy claims xavier_wts can be uninitialized at this assignment
-			 * i dont believe it so we're gonna just leave it and maby tryn get the
-			 * warning to fuck off later */
 		}
 		free(xavier_wts);
 	}
@@ -235,28 +269,27 @@ int dnn_save_net(struct dnn_net *net, const char *filename)
 	int i, j;
 	FILE *fp;
 	char *data_access;
+	static float float_magicnum = 9;
 
 	fp = fopen(filename, "w");
 	if(!fp)
 		return -1;
 
-	/* number of layers (must be <= 255layers / net) */
+	/* float_magicnum, validates savefile compatibility
+	 * plus can encode shit in it too version information etc */
+	for(i = 0; i < (int)sizeof float_magicnum; ++i)
+		fputc(((char *)&float_magicnum)[i], fp);
+
+	/* number of layers (must be < 256layers / net) */
 	fputc((char)net->num_lays, fp);
 
-	/* sizeof layer datatype */
-	fputc((char) sizeof net->lays[0].bias[0], fp);
-
-	/* layer_sizes (2 bytes so <= 65535nodes / layer) */
+	/* layer_sizes (2 bytes so < 65536nodes / layer) */
 	for(i = 0; i < net->num_lays; ++i)
 		for(j = 0; j < 2; ++j)
 			fputc((char)net->lay_sizes[i] >> (8 * j), fp);
 
-	/* num_lays and lay_sizes[] should be enough to dtm the sizes
-	 * of parameter arrays for each layer, given they appear in the
-	 * file in a known order */
-
-	/* the network save file will only b portable between platforms with
-	 * the same floating point implementation */
+	/* write parameters, enough informantion to decode and load this
+	 * data is now stored in the header bytes */
 	for(i = 0; i < net->num_lays - 1; ++i){
 		data_access = (char *)net->lays[i].bias;
 		for(j = 0; j < net->lay_sizes[i + 1] * (int)sizeof *net->lays[i].bias; ++j)
@@ -277,7 +310,7 @@ struct dnn_net *dnn_load_net(const char *filename)
 {
 	int i, j;
 	int num_lays;
-	int net_typesize;
+	float float_magicnum;
 	int *lay_sizes;
 	char *data_access;
 	struct dnn_net *net;
@@ -287,18 +320,14 @@ struct dnn_net *dnn_load_net(const char *filename)
 	if(!fp)
 		return NULL;
 
-	num_lays = fgetc(fp);
-
-	/* may seem useless as we only use float for all net params,
-	 * however, this allows the program to be portable between
-	 * platforms with different floating point implementations,
-	 * even if the network save files are not */
-	net_typesize = fgetc(fp);
-
-	/* scratch that all it does is allow verification that a save
-	 * file will *not* work due to a float size mismatch */
-	if(net_typesize != sizeof *(((struct dnn_layer*)0)->bias))
+	/* chock float_magicnum to validate network save file
+	 * compatibility */
+	for(i = 0; i < (int)sizeof float_magicnum; ++i)
+		((char *)&float_magicnum)[i] = fgetc(fp);
+	if(float_magicnum != 9)
 		return NULL;
+
+	num_lays = fgetc(fp);
 
 	lay_sizes = malloc(sizeof *lay_sizes * num_lays);
 	for(i = 0; i < num_lays; ++i){
@@ -311,11 +340,11 @@ struct dnn_net *dnn_load_net(const char *filename)
 
 	for(i = 0; i < num_lays - 1; ++i){
 		data_access = (char *)net->lays[i].bias;
-		for(j = 0; j < lay_sizes[i + 1] * net_typesize; ++j)
+		for(j = 0; j < lay_sizes[i + 1] * (int)sizeof float_magicnum; ++j)
 			data_access[j] = fgetc(fp);
 
 		data_access = (char *)net->lays[i].wm_alloc_handle;
-		for(j = 0; j < lay_sizes[i] * lay_sizes[i + 1] * net_typesize; ++j)
+		for(j = 0; j < lay_sizes[i] * lay_sizes[i + 1] * (int)sizeof float_magicnum; ++j)
 			data_access[j] = fgetc(fp);
 	}
 
@@ -337,8 +366,8 @@ int dnn_train(float *inp, float *want, struct dnn_train *train)
 		for(j = 0; j < train->net->lay_sizes[i]; ++j){
 			train->d_lays[i].wtd_sum[j] = 0;
 			for(k = 0; k < train->net->lay_sizes[i - 1]; ++k)
-				train->d_lays[i].wtd_sum[j] += 
-					train->net->lays[i - 1].wm[j][k] * 
+				train->d_lays[i].wtd_sum[j] +=
+					train->net->lays[i - 1].wm[j][k] *
 					train->d_lays[i - 1].act[k];
 			train->d_lays[i].wtd_sum[j] += train->net->lays[i - 1].bias[j];
 			train->d_lays[i].act[j] = train->net->lays[i - 1].actv_func(train->d_lays[i].wtd_sum[j]);
@@ -346,7 +375,7 @@ int dnn_train(float *inp, float *want, struct dnn_train *train)
 	}
 	for(i = 0; i < train->net->lay_sizes[train->net->num_lays - 1]; ++i)
 		train->d_lays[train->net->num_lays - 1].d_act[i] = train->d_cost(train->d_lays[train->net->num_lays - 1].act[i], want[i]);
-	/* backprop */
+	/* backpropegationnnnnnnnn baby */
 	for(i = train->net->num_lays - 1; i > 0; --i){
 		for(j = 0; j < train->net->lay_sizes[i]; ++j){
 			train->d_lays[i].d_wtd_sum[j] = train->d_lays[i].d_actv_func(train->d_lays[i].wtd_sum[j]) * train->d_lays[i].d_act[j];
@@ -359,9 +388,19 @@ int dnn_train(float *inp, float *want, struct dnn_train *train)
 			for(j = 0; j < train->net->lay_sizes[i]; ++j)
 				train->d_lays[i - 1].d_act[k] = train->d_lays[i].d_wtd_sum[j] * train->net->lays[i - 1].wm[j][k];
 	}
-	/* some janky shit goes on here so that cost gradient of input "activations" can be known and multiple
-	 * networks can be connected together to play min max games such as required for a gann */
 	return 0;
+}
+
+float *get_input_gradient(struct dnn_train *train)
+{
+	int i;
+	float *inp_grad;
+
+	inp_grad = malloc(sizeof *inp_grad * train->net->lay_sizes[0]);
+	for(i = 0; i < train->net->lay_sizes[0]; ++i)
+		inp_grad[i] = train->d_lays[0].d_act[i];
+
+	return inp_grad;
 }
 
 int dnn_apply(struct dnn_train **train, int n_train, float train_aggr)
@@ -389,13 +428,17 @@ float *dnn_test(struct dnn_net *net, float *inp)
 	float *acts;
 	int sum_lay_sizes;
 
-	/* output = output_act(net, net->num_lays - 1, inp);
-	 * ya this was insane and is highly borked,
-	 * see broken_code.c */
+	if(!net || !inp)
+		return NULL;
 
+	/* allocate temp activation storage */
 	sum_lay_sizes = 0;
 	for(i = 0; i < net->num_lays; ++i)
 		sum_lay_sizes += net->lay_sizes[i];
+
+	/* make clang-tidy happy */
+	if(sum_lay_sizes == 0)
+		return NULL;
 
 	act = malloc(sizeof *act * net->num_lays);
 	acts = malloc(sizeof *acts * sum_lay_sizes);
@@ -410,7 +453,7 @@ float *dnn_test(struct dnn_net *net, float *inp)
 	for(i = 0; i < net->lay_sizes[0]; ++i)
 		act[0][i] = inp[i];
 
-	/* actual calculation steps */
+	/* its alive! */
 	for(i = 0; i < net->num_lays - 1; ++i){
 		for(j = 0; j < net->lay_sizes[i + 1]; ++j){
 			act[i + 1][j] = 0;
