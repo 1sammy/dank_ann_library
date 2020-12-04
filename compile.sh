@@ -22,7 +22,3 @@ gcc -shared bin/shared/dnn.o -o bin/shared/libdnn.so
 #	LD_LIBRARY_PATH+=:($pwd)/bin/shared
 # or the library can be installed to a defaut location:
 #	cp bin/shared/libdnn.so /usr/local/lib64/
-
-# compiling and linking examples
-
-gcc $GCC_OPTS src/examples/main.c -Lbin/static -ldnn -o bin/examples/mnist -lm

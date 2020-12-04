@@ -23,7 +23,7 @@
 #include <limits.h>
 #include <time.h>
 
-#include "../dnn.h"
+#include "../../src/dnn.h"
 
 #define TRAIN_DATA	"MNIST/train-images-idx3-ubyte"
 #define TRAIN_LABEL	"MNIST/train-labels-idx1-ubyte"
