@@ -1,0 +1,11 @@
+sam's Dank Neural Network library (libdnn)
+
+see header file src/dnn.h for api documentation
+
+./compile.sh builds static and shared libraries with gcc and dumps them in bin/
+{static, shared}
+
+compile.sh also builds an example program to bin/examples/mnist, which trains 
+handwritten digit recognition on the MNIST database (provided)
+
+all code is made avaliable under the terms of GPL-3.0-only, see LICENSE
