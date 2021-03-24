@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <time.h>
+#include <pthread.h>
 
 #include "../../src/dnn.h"
 
@@ -134,7 +135,6 @@ struct dataset *load_dataset(const char *datafile, const char *labelfile)
 	for(i = 0; i < ds->data_size[0]; ++i)
 		for(a = 0; a < ds->data_size[1]; ++a)
 				ds->data[i][a] = (float)fgetc(data_fp) / UCHAR_MAX;
-	// / UCHAR_MAX **
 
 	fclose(data_fp);
 	fclose(label_fp);
@@ -169,6 +169,13 @@ int destroy_dataset(struct dataset *ds)
 	return 0;
 }
 
+void *thread_job(void *arg)
+{
+
+
+	pthread_exit(NULL);
+}
+
 int main()
 {
 	int i, a, b;
@@ -185,21 +192,22 @@ int main()
 	float max_output;
 	float accuracy;
 
-	static int some_sizes[4] = {28 * 28, 16, 16, 10};
+	static int some_sizes[3] = {28 * 28, 32, 10};
 
 	train_data = load_dataset(TRAIN_DATA, TRAIN_LABEL);
 
-	net = dnn_create_network(4, some_sizes);
+	net = dnn_create_network(3, some_sizes);
 	dnn_init_net(net);
 
 	train = dnn_create_train(net);
 
-	printf("sweeping over the training database a thousand times...\n");
-	for(b = 0; b < 50; ++b)
+	printf("training...\n");
+	for(b = 0; b < 0; ++b)
 	for(i = 0; i < train_data->data_size[0]; ++i){
 		for(a = 0; a < 10; ++a)
 			want[a] = 0;
 		want[train_data->label[i]] = 1;
+
 		dnn_train(train_data->data[i], want, train);
 		dnn_apply(&train, 1, 0.03);
 	}

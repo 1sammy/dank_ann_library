@@ -1,10 +1,10 @@
-/* sam's Dank Neural Network library (libdnn)
+/* sam's Dank Neural Network library (libdanknn)
  *
  * Copyright Sam Popham 2020
  *
- * this file is part of libdnn
+ * this file is part of libdanknn
  *
- *  libdnn is free software: you can redistribute it and/or modify
+ *  libdanknn is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
@@ -32,26 +32,15 @@ extern "C"
 /*
  * all functions exposed by this header are prefixed with dnn_
  * they provide functionality to:
- * 1)	create neural networks of layer number < 255
- * 	and layer size < 65535 (size is arbitrarily limited to
- * 	system memory avaliability, however networks exceeding
- * 	these limits will not save or load correctly)
- * 2)	initialize networks
- * 3)	train the networks on examples provided by input and
- * 	output float arrays
- * 4)	feed forward inputs to return network guesses
- * 5)	save and load networks to and from horrifically custom
- * 	file formats (any systems sharing network save files
- * 	must have the same floating point implementation; this
- * 	is likely to be true on modern systems implementing
- * 	IEEE754
- * 6)	destroy objects returned by dnn_create_ functions and
- * 	free their memory back to system
- * 7)	get the input cost gradient of a network, to be able to
- * 	propegate this back through a network producing the input
  *
- * functions returning pointer types will return NULL on
- * error, int functions return 0 on success and -1 on error
+ * 1)	create fully-connected feedforward neural networks
+ * 2)	initialize the networks
+ * 3)	train and test the networks
+ * 4)	save and load networks from files
+ * 5)	connect two or more networks together
+ *
+ * functions returning pointer types return NULL on failure
+ * functions returning int return -1 on failure
  *
  */
 

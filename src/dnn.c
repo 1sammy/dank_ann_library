@@ -280,13 +280,14 @@ int dnn_save_net(struct dnn_net *net, const char *filename)
 	for(i = 0; i < (int)sizeof float_magicnum; ++i)
 		fputc(((char *)&float_magicnum)[i], fp);
 
-	/* number of layers (must be < 256layers / net) */
-	fputc((char)net->num_lays, fp);
+	/* number of layers */
+	for(i = 0; i < (int)sizeof net->num_lays; ++i)
+		fputc((char)(net->num_lays >> (8 * i)), fp);
 
-	/* layer_sizes (2 bytes so < 65536nodes / layer) */
+	/* layer_sizes */
 	for(i = 0; i < net->num_lays; ++i)
-		for(j = 0; j < 2; ++j)
-			fputc((char)net->lay_sizes[i] >> (8 * j), fp);
+		for(j = 0; j < (int)sizeof *net->lay_sizes; ++j)
+			fputc((char)(net->lay_sizes[i] >> (8 * j)), fp);
 
 	/* write parameters, enough informantion to decode and load this
 	 * data is now stored in the header bytes */
@@ -320,20 +321,21 @@ struct dnn_net *dnn_load_net(const char *filename)
 	if(!fp)
 		return NULL;
 
-	/* chock float_magicnum to validate network save file
-	 * compatibility */
+	/* validate save file compatibility */
 	for(i = 0; i < (int)sizeof float_magicnum; ++i)
 		((char *)&float_magicnum)[i] = fgetc(fp);
 	if(float_magicnum != 9)
 		return NULL;
 
-	num_lays = fgetc(fp);
+	num_lays = 0;
+	for(i = 0; i < (int)sizeof num_lays; ++i)
+		num_lays |= fgetc(fp) << 8 * i;
 
 	lay_sizes = malloc(sizeof *lay_sizes * num_lays);
 	for(i = 0; i < num_lays; ++i){
 		lay_sizes[i] = 0;
-		for(j = 0; j < 2; ++j)
-			lay_sizes[i] |= fgetc(fp) << (8 * j);
+		for(j = 0; j < (int)sizeof *lay_sizes; ++j)
+			lay_sizes[i] |= fgetc(fp) << 8 * j;
 	}
 
 	net = dnn_create_network(num_lays, lay_sizes);
