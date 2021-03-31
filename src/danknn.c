@@ -25,7 +25,7 @@
 #include <limits.h>
 #include <string.h>
 
-#include "dnn_intern.h"
+#include "danknn_intern.h"
 
 float dnn_act_sigmoid(float x)
 {

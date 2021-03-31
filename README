@@ -1,13 +1,13 @@
-sam's Dank Neural Network library (libdnn)
+sam's Dank Neural Network library (libdanknn)
 
-libdnn is a C/C++ neural network library providing basic fully-connected ann
+libdanknn is a C/C++ neural network library providing basic fully-connected ann
 functionality in a C implementation depending only on the standard library
 
-see header file src/dnn.h for api documentation
+see header file src/danknn.h for api documentation
 
 ./compile.sh builds static and shared libraries to bin/{static, shared} with
 gcc
 
-see examples/ for example programs using libdnn
+see examples/ for example programs using libdanknn
 
 all code is made avaliable under the terms of GPL-3.0-or-later, see COPYING
