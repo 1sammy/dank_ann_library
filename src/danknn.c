@@ -1,10 +1,10 @@
-/* sam's Dank Neural Network library (libdnn)
+/* sam's Dank Neural Network library (libdanknn)
  *
  * Copyright Sam Popham 2020
  *
- * this file is part of libdnn
+ * this file is part of libdanknn
  *
- *  libdnn is free software: you can redistribute it and/or modify
+ *  libdanknn is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
@@ -227,7 +227,7 @@ float *xavier_data(int n_cols, int n_rows)
 			rand_n = rand() / (RAND_MAX + 1.0);
 		if(rand() % 2 == 0){
 			/* target dataset:
-			 * data[i] ~ U[-1/sqrt(n), 1/sqrt(n)],
+			 * data[i] ~ U[-sqrt(6)/sqrt(n + m), sqrt(6)/sqrt(n + m)],
 			 * n = row_size(wm) */
 			rand_n *= -1;
 		}

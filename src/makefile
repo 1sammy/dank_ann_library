@@ -1,6 +1,6 @@
-CFLAGS=-O3 -Wall -g
+CFLAGS=-O3 -Wall -ggdb
 
-libdnn:		danknn.o
+libdanknn:	danknn.o
 	cc -shared danknn.o -o libdanknn.so
 	ar rcs libdanknn.a danknn.o
 

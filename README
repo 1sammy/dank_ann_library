@@ -1,13 +1,25 @@
-sam's Dank Neural Network library (libdanknn)
+sam's dank neural network library (libdanknn)
+
+###
 
 libdanknn is a C/C++ neural network library providing basic fully-connected ann
 functionality in a C implementation depending only on the standard library
 
 see header file src/danknn.h for api documentation
 
-./compile.sh builds static and shared libraries to bin/{static, shared} with
-gcc
+###
+
+to build the library run
+$ make
+in the root directory of the repo, which will build static and shared libraries
+in src/ assuming you have a working c compiler toolchain and automake installed
+
+this will also copy the built shared library to the repo root
+
+###
 
 see examples/ for example programs using libdanknn
+
+###
 
 all code is made avaliable under the terms of GPL-3.0-or-later, see COPYING

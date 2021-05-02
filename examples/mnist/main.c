@@ -1,4 +1,4 @@
-/* an example program using libdnn (sam's Dank Neural Network library)
+/* an example program using libdanknn (sam's Dank Neural Network library)
  * to train a network to recognize handwritten digits in the MNIST
  * database 
  *
@@ -24,7 +24,7 @@
 #include <time.h>
 #include <pthread.h>
 
-#include "../../src/dnn.h"
+#include "../../src/danknn.h"
 
 #define TRAIN_DATA	"MNIST/train-images-idx3-ubyte"
 #define TRAIN_LABEL	"MNIST/train-labels-idx1-ubyte"
@@ -179,9 +179,9 @@ void *thread_job(void *arg)
 int main()
 {
 	int i, a, b;
-	int rand_sel;
 
-	struct dataset *train_data, *test_data;
+	struct dataset *train_data;
+	struct dataset *test_data;
 
 	struct dnn_net *net;
 	struct dnn_train *train;
@@ -192,17 +192,17 @@ int main()
 	float max_output;
 	float accuracy;
 
-	static int some_sizes[3] = {28 * 28, 32, 10};
+	static int some_sizes[] = {28 * 28, 128, 64, 10};
 
 	train_data = load_dataset(TRAIN_DATA, TRAIN_LABEL);
 
-	net = dnn_create_network(3, some_sizes);
+	net = dnn_create_network(sizeof some_sizes / sizeof *some_sizes, some_sizes);
 	dnn_init_net(net);
 
 	train = dnn_create_train(net);
 
 	printf("training...\n");
-	for(b = 0; b < 0; ++b)
+	for(b = 0; b < 15; ++b)
 	for(i = 0; i < train_data->data_size[0]; ++i){
 		for(a = 0; a < 10; ++a)
 			want[a] = 0;
@@ -220,8 +220,7 @@ int main()
 	accuracy = 0;
 	printf("testing on the testing database...\n");
 	for(i = 0; i < test_data->data_size[0]; ++i){
-		rand_sel = rand() % test_data->data_size[0];
-		output = dnn_test(net, test_data->data[rand_sel]);
+		output = dnn_test(net, test_data->data[i]);
 		/*
 		for(a = 0; a < 10; ++a)
 			printf("%1.3f ", output[a]);
@@ -238,7 +237,7 @@ int main()
 			}
 		}
 		// printf("network_guess: %i\n", guess);
-		if(guess == test_data->label[rand_sel])
+		if(guess == test_data->label[i])
 			accuracy += 1.0/test_data->data_size[0];
 
 		free(output);
