@@ -1,4 +1,4 @@
-CFLAGS=-O3 -Wall -ggdb
+CFLAGS=-O3 -Wall -ggdb --std=gnu99
 
 libdanknn:	danknn.o
 	cc -shared danknn.o -o libdanknn.so

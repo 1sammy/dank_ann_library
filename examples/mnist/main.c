@@ -20,11 +20,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <limits.h>
 #include <time.h>
 #include <pthread.h>
 
-#include "../../src/danknn.h"
+#include "../../src/danknn_intern.h"
 
 #define TRAIN_DATA	"MNIST/train-images-idx3-ubyte"
 #define TRAIN_LABEL	"MNIST/train-labels-idx1-ubyte"
@@ -50,7 +51,7 @@ struct dataset *load_dataset(const char *datafile, const char *labelfile)
 	int rand_sel;
 	struct dataset *ds;
 	FILE *data_fp, *label_fp;
-	
+
 	ds = malloc(sizeof *ds);
 
 	// load MNIST training data
@@ -134,7 +135,7 @@ struct dataset *load_dataset(const char *datafile, const char *labelfile)
 		ds->label[i] = fgetc(label_fp);
 	for(i = 0; i < ds->data_size[0]; ++i)
 		for(a = 0; a < ds->data_size[1]; ++a)
-				ds->data[i][a] = (float)fgetc(data_fp) / UCHAR_MAX;
+			ds->data[i][a] = (float)fgetc(data_fp) / UCHAR_MAX;
 
 	fclose(data_fp);
 	fclose(label_fp);
@@ -169,12 +170,39 @@ int destroy_dataset(struct dataset *ds)
 	return 0;
 }
 
+struct thread_data{
+	int n_examples;
+	float **examples;
+	char *labels;
+	struct dnn_train **training;
+};
+
 void *thread_job(void *arg)
 {
+	int i, j;
+	struct thread_data *dat = arg;
+	float want[10];
+	int err;
 
+	err = 0;
+	for(i = 0; i < dat->n_examples; ++i){
+		for(j = 0; j < sizeof want / sizeof *want; ++j)
+			want[j] = 0;
+		want[dat->labels[i]] = 1;
+
+		err |= dnn_train(dat->examples[i], want, dat->training[i]);
+		if(err){
+			puts("training failed");
+			pthread_exit(NULL);
+		}
+	}
 
 	pthread_exit(NULL);
 }
+
+#define NUM_THREADS 16
+#define NUM_EPOCHS 500
+#define BATCH_SIZE 5
 
 int main()
 {
@@ -184,34 +212,77 @@ int main()
 	struct dataset *test_data;
 
 	struct dnn_net *net;
-	struct dnn_train *train;
-	float *output;
-	float want[10];
 
-	int guess;
+	struct dnn_train **train;
+	size_t n_batches;
+
+	pthread_t thread[NUM_THREADS];
+	struct thread_data thread_data[NUM_THREADS];
+
+	float *output;
 	float max_output;
+	int guess;
 	float accuracy;
 
-	static int some_sizes[] = {28 * 28, 128, 64, 10};
+	static int layer_shapes[] = {0, 256, 128, 10};
 
 	train_data = load_dataset(TRAIN_DATA, TRAIN_LABEL);
 
-	net = dnn_create_network(sizeof some_sizes / sizeof *some_sizes, some_sizes);
+	layer_shapes[0] = train_data->data_size[1];
+	for(i = 2; i < train_data->data_mn[3]; ++i)
+		layer_shapes[i] *= train_data->data_size[i];
+	printf("layer_shapes[0]: %d\n", layer_shapes[0]);
+
+	net = dnn_create_network(sizeof layer_shapes / sizeof *layer_shapes, layer_shapes);
 	dnn_init_net(net);
 
-	train = dnn_create_train(net);
+	train = malloc(sizeof *train * NUM_THREADS * BATCH_SIZE);
+	for(i = 0; i < NUM_THREADS * BATCH_SIZE; ++i)
+		train[i] = dnn_create_train(net);
 
+	n_batches = train_data->data_size[0] / BATCH_SIZE / NUM_THREADS;
+
+	int err;
 	printf("training...\n");
-	for(b = 0; b < 15; ++b)
-	for(i = 0; i < train_data->data_size[0]; ++i){
-		for(a = 0; a < 10; ++a)
-			want[a] = 0;
-		want[train_data->label[i]] = 1;
+	err = 0;
+	for(b = 0; b < NUM_EPOCHS; ++b){
+		for(int c = 0; c < n_batches; ++c){
+			for(i = 0; i < NUM_THREADS; ++i){
+				thread_data[i].n_examples = BATCH_SIZE;
+				thread_data[i].examples = &train_data->data[BATCH_SIZE * (NUM_THREADS * c + i)];
+				thread_data[i].labels = &train_data->label[BATCH_SIZE * (NUM_THREADS * c + i)];
+				thread_data[i].training = &train[BATCH_SIZE * i];
+			}
 
-		dnn_train(train_data->data[i], want, train);
-		dnn_apply(&train, 1, 0.03);
+			for(i = 0; i < NUM_THREADS; ++i)
+				err |= pthread_create(&thread[i], NULL, thread_job, &thread_data[i]);
+
+			if(err){
+				puts("error creating pthreads");
+				return -1;
+			}
+
+			for(i = 0; i < NUM_THREADS; ++i)
+				err |= pthread_join(thread[i], NULL);
+
+			if(err){
+				puts("error joining pthreads");
+				return -1;
+			}
+
+			err |= dnn_apply(train, NUM_THREADS * BATCH_SIZE, 0.03);
+			// plot avg(train->lays->actv) / time for each layer  // parameter convergengce/saturation
+			//
+			// plot thick lines between avg_actv points with screen bounds mapped to reasonable time, actv bounds
+
+		}
+
+		printf("\r%d epochs remaining", NUM_EPOCHS - b - 1);
+		fflush(stdout);
 	}
 
+	for(i = 0; i < NUM_THREADS * BATCH_SIZE; ++i)
+		dnn_destroy_train(train[i]);
 	destroy_dataset(train_data);
 
 	test_data = load_dataset(TEST_DATA, TEST_LABEL);
@@ -222,11 +293,11 @@ int main()
 	for(i = 0; i < test_data->data_size[0]; ++i){
 		output = dnn_test(net, test_data->data[i]);
 		/*
-		for(a = 0; a < 10; ++a)
-			printf("%1.3f ", output[a]);
-		putchar('\n');
-		printf("labelled value: %i\n", test_data->label[rand_sel]);
-		*/
+		   for(a = 0; a < 10; ++a)
+		   printf("%1.3f ", output[a]);
+		   putchar('\n');
+		   printf("labelled value: %i\n", test_data->label[rand_sel]);
+		   */
 
 		// determining accuracy
 		max_output = 0;
@@ -248,7 +319,6 @@ int main()
 	printf("accuracy: %f\n", accuracy);
 	dnn_save_net(net, "dank.net");
 
-	dnn_destroy_train(train);
 	dnn_destroy_net(net);
 
 	return 0;

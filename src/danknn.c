@@ -32,16 +32,22 @@ float dnn_act_sigmoid(float x)
 	return pow(1 + exp(-1 * x), -1);
 }
 
-/* swish by default cuz its dank: */
+/* swish activation function [https://arxiv.org/abs/1710.05941] implementation for a library default */
 float dnn_act_swish(float x)
 {
 	return x * dnn_act_sigmoid(x);
 }
 
+
 float dnn_d_act_swish(float x)
 {
 	return dnn_act_swish(x) + dnn_act_sigmoid(x) * (1 - dnn_act_swish(x));
 }
+
+/* TODO: implement APTx activation function [https://arxiv.org/ftp/arxiv/papers/2209/2209.06119.pdf]
+  * suchthat all params are trainable*/
+float dnn_act_aptx(float x){}
+float dnn_d_act_aptx(float x){}
 
 struct dnn_net *dnn_create_network(int num_lays, int *lay_sizes)
 {
@@ -238,7 +244,7 @@ float *xavier_data(int n_cols, int n_rows)
 	return data;
 }
 
-/* Xavier initialization, cuz its dank */
+/* "Xavier initialization" heuristic, originally called normalized initialization [https://proceedings.mlr.press/v9/glorot10a/glorot10a.pdf]*/
 int dnn_init_net(struct dnn_net *net)
 {
 	int i, j, k;
